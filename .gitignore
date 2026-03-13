@@ -1,9 +1,20 @@
+# Local data files
 data/
 outputs/
+
+# Python cache
 __pycache__/
 *.pyc
+
+# Jupyter Notebook
 .ipynb_checkpoints/
-*.egg-info/
-.venv/
+
+# virtual environment
 venv/
 .env
+
+# Model
+models/
+*.pkl
+*.pt
+*.pth
