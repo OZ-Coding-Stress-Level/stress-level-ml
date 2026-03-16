@@ -75,10 +75,8 @@ def encode_categorical(df):
         
     return df
 
+# 전처리 실행 함수
 def run_preprocessing(df: pd.DataFrame, is_train: bool = True) -> pd.DataFrame:
-    """
-    전처리 실행
-    """
 
     df = handle_missing_values(df)
     print("결측치 처리 완료")
