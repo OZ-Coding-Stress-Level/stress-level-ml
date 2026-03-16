@@ -7,14 +7,8 @@ from sklearn.metrics import mean_absolute_error, r2_score
 
 # 전처리 모듈 불러오기
 from preprocess import run_preprocessing
-
-def load_config(config_path: str = '../configs/config.yaml'):
-    """
-    config.yaml 파일 로드 - 설정 정보 로드
-    """
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    return config
+# config 호출 함수 불러오기
+from utils.config_loader import load_config
 
 def main():
     print("train.py 실행")
