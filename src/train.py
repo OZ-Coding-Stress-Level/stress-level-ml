@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-import yaml
+import joblib
 import lightgbm as lgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
@@ -11,7 +11,6 @@ from preprocess import run_preprocessing
 from utils.config_loader import load_config
 
 def main():
-    print("train.py 실행")
     # 설정 및 데이터 로드
     config = load_config()
 
@@ -27,7 +26,7 @@ def main():
         train_df = train_df.drop(columns=[id_col])
 
     # 전처리
-    processed_df = run_preprocessing(train_df)
+    processed_df, scaler, encoder  = run_preprocessing(train_df)
 
     # 학습 데이터 준비 (각 데이터와 결과 분리)
     target_col = config['features']['target']
@@ -72,6 +71,20 @@ def main():
     print(f"   - MAE: {mae:.4f}")
     print(f"   - R2 Score: {r2:.4f}")
     print("================================\n")
+
+    # 학습한 모델 저장
+    output_dir = os.path.join('..', config['output']['dir'])
+    os.makedirs(output_dir, exist_ok=True) # ouputs 폴더가 없을 시 생성 코드
+
+    model_path = os.path.join(output_dir, 'lgb_model.pkl')
+
+    joblib.dump({
+        'model': model,
+        'scaler': scaler,
+        'encoder': encoder
+    }, model_path)
+
+    print(f"모델 저장 : {model_path}")
 
 if __name__ == "__main__":
     main()
