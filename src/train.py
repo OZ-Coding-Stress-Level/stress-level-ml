@@ -81,7 +81,7 @@ def main():
     joblib.dump({
         'model': model,
         'scaler': scaler,
-        'encoder': encoders
+        'encoders': encoders
     }, model_path)
 
     print(f"모델 저장 : {model_path}")
