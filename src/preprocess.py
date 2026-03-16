@@ -3,9 +3,6 @@ import numpy as np
 
 # 결측치 처리
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    결측치(빈 값) 처리
-    """
     df = df.copy()
 
     # 수치형 변수 결측치 처리
@@ -42,12 +39,24 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+# 피셍 변수 생성
+def create_features(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    
+    # BMI (체질량지수) 생성: 몸무게(kg) / (키(m)의 제곱)
+    if 'weight' in df.columns and 'height' in df.columns:
+        df['bmi'] = df['weight'] / ((df['height'] / 100) ** 2)
+                              
+    return df
 def run_preprocessing(df: pd.DataFrame, is_train: bool = True) -> pd.DataFrame:
     """
     전처리 실행
     """
 
     df = handle_missing_values(df)
-    print("결측치 처리")
+    print("결측치 처리 완료")
+    
+    df = create_features(df)
+    print("파생 변수(BMI) 생성 완료")
 
     return df
