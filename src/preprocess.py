@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 # 결측치 처리
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
@@ -48,6 +49,32 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
         df['bmi'] = df['weight'] / ((df['height'] / 100) ** 2)
                               
     return df
+
+# StandardScaler를 통해 숫자 단위의 차이로 인해 모델에 영향을 주는 것을 방지하기 위해
+def scale_numerical(df, target_col='stress_score'):
+    df = df.copy()
+    scaler = StandardScaler()
+    
+    # 정답지(target_col)와 0/1로 이루어진 이진 변수는 스케일링에서 제외
+    num_cols = df.select_dtypes(include=['number']).columns
+    cols_to_scale = [c for c in num_cols if c not in [target_col]]
+    
+    if len(cols_to_scale) > 0:
+        df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
+        
+    return df
+
+# Label Encoder를 통해 문자열을 숫자로 변경
+def encode_categorical(df):
+    df = df.copy()
+    cat_cols = df.select_dtypes(include=['object']).columns
+    
+    for col in cat_cols:
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col].astype(str))
+        
+    return df
+
 def run_preprocessing(df: pd.DataFrame, is_train: bool = True) -> pd.DataFrame:
     """
     전처리 실행
@@ -58,5 +85,11 @@ def run_preprocessing(df: pd.DataFrame, is_train: bool = True) -> pd.DataFrame:
     
     df = create_features(df)
     print("파생 변수(BMI) 생성 완료")
+    
+    df = scale_numerical(df)
+    print("수치형 변수 스케일링 완료")
+
+    df = encode_categorical(df)
+    print("범주형 변수 라벨 인코딩 완료")
 
     return df
