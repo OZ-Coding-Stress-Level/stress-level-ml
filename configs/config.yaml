@@ -7,7 +7,7 @@ data:
 
 # 피처 정보
 features:
-  target: "stress_score"
+  target: "stress_score" # (TARGET) 스트레스 점수 
   id_col: "ID" # 샘플별 고유 ID
 
   # 수치형 변수
