@@ -52,34 +52,66 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 # StandardScaler를 통해 숫자 단위의 차이로 인해 모델에 영향을 주는 것을 방지하기 위해
-def scale_numerical(df, target_col='stress_score') -> Tuple[pd.DataFrame, StandardScaler]:
+def scale_numerical(df: pd.DataFrame, is_train=True, scaler=None, target_col='stress_score') -> Tuple[pd.DataFrame, StandardScaler]:
     df = df.copy()
-    scaler = StandardScaler()
+
+    # 실전 예측(Test)인데 스케일러 도구를 안 가져왔다면 에러를 띄웁니다.
+    if not is_train and scaler is None:
+        raise ValueError("테스트 데이터를 변환하려면 학습 때 만든 scaler가 필요합니다!")
+        
+    # 학습(Train) 중일 때만 새 스케일러 도구를 포장지에서 꺼냅니다.
+    if is_train:
+        scaler = StandardScaler()
+
     
     # 정답지(target_col)와 0/1로 이루어진 이진 변수는 스케일링에서 제외
     num_cols = df.select_dtypes(include=['number']).columns
     cols_to_scale = [c for c in num_cols if c not in [target_col]]
     
     if len(cols_to_scale) > 0:
-        df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
+        if is_train:
+            # 학습할 때는 기준을 세우고(fit) + 변환(transform)
+            df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
+        else:
+            # 실전에서는 학습 때 만든 기준을 그대로 써서 변환(transform)
+            df[cols_to_scale] = scaler.transform(df[cols_to_scale])
         
     return df, scaler
 
 # Label Encoder를 통해 문자열을 숫자로 변경
-def encode_categorical(df) -> Tuple[pd.DataFrame, LabelEncoder]:
+# encoders라는 복수형을 쓴 이유 : 데이터내에 범주형인 데이터가 여러개 이므로 각각에 대한 label encoder가 생성되기 때문에 복수형으로 사용
+def encode_categorical(df: pd.DataFrame, is_train=True, encoders=None) -> Tuple[pd.DataFrame, LabelEncoder]:
     df = df.copy()
-    label_encoders = {}
+    
+    if encoders is None:
+        encoders = {}
+
     cat_cols = df.select_dtypes(include=['object']).columns
     
     for col in cat_cols:
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col].astype(str))
-        label_encoders[col] = le
+        if is_train:
+            le = LabelEncoder()
+            # 1. 문자를 숫자로 변환
+            # 2. 정수형(int)으로 변경
+            df[col] = le.fit_transform(df[col].astype(str)).astype(int)
+            encoders[col] = le
+        else:
+            if col in encoders:
+                le = encoders[col]
+                # 실전(Test) 데이터에 처음 보는 단어가 등장하면 에러가 나므로,
+                # 학습 때 보았던 가장 흔한 값(le.classes_[0])으로 덮어씌우는 방어적 코드
+                df[col] = df[col].astype(str).map(lambda s: s if s in le.classes_ else le.classes_[0])
+                df[col] = le.transform(df[col]).astype(int)
         
-    return df, label_encoders
+    return df, encoders
 
 # 전처리 실행 함수
-def run_preprocessing(df: pd.DataFrame, is_train: bool = True) -> Tuple[pd.DataFrame, StandardScaler, LabelEncoder]:
+def run_preprocessing(
+    df: pd.DataFrame, 
+    is_train: bool = True,
+    scaler: StandardScaler = None,
+    encoders: LabelEncoder = None
+    ) -> Tuple[pd.DataFrame, StandardScaler, LabelEncoder]:
 
     df = handle_missing_values(df)
     print("결측치 처리 완료")
@@ -87,10 +119,10 @@ def run_preprocessing(df: pd.DataFrame, is_train: bool = True) -> Tuple[pd.DataF
     df = create_features(df)
     print("파생 변수(BMI) 생성 완료")
     
-    df, scaler = scale_numerical(df)
+    df, scaler = scale_numerical(df, is_train, scaler)
     print("수치형 변수 스케일링 완료")
 
-    df, encoder = encode_categorical(df)
+    df, encoders = encode_categorical(df, is_train, encoders)
     print("범주형 변수 라벨 인코딩 완료")
 
-    return df, scaler, encoder
+    return df, scaler, encoders

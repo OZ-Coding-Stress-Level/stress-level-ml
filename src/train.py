@@ -26,7 +26,7 @@ def main():
         train_df = train_df.drop(columns=[id_col])
 
     # 전처리
-    processed_df, scaler, encoder  = run_preprocessing(train_df)
+    processed_df, scaler, encoders  = run_preprocessing(train_df)
 
     # 학습 데이터 준비 (각 데이터와 결과 분리)
     target_col = config['features']['target']
@@ -81,7 +81,7 @@ def main():
     joblib.dump({
         'model': model,
         'scaler': scaler,
-        'encoder': encoder
+        'encoder': encoders
     }, model_path)
 
     print(f"모델 저장 : {model_path}")
