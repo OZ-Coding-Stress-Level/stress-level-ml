@@ -1,16 +1,17 @@
 import os
 import pandas as pd
+import numpy as np
 import optuna
 import lightgbm as lgb
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
 from sklearn.metrics import mean_absolute_error
 
 from utils.config_loader import load_config
 from preprocess import run_preprocessing
 
 # Optuna가 1번 실험(Trial)을 할 때마다 실행되는 함수
-def objective(trial, X_train, y_train, X_val, y_val, config):
-    # Optuna가 이번 실험에서 시도해 볼 파라미터 조합을 '알아서' 뽑아줍니다.
+def objective(trial, X, y, config):
+    # Optuna가 이번 실험에서 시도해 볼 파라미터 조합을 출력
     param = {
         'objective': 'mae',
         'metric': 'mae',
@@ -24,26 +25,39 @@ def objective(trial, X_train, y_train, X_val, y_val, config):
         'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0) # 피처의 몇 %만 쓸지
     }
 
-    # 뽑아준 파라미터로 모델을 학습시킵니다.
-    train_data = lgb.Dataset(X_train, label=y_train)
-    val_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
+    # K-Fold 설정
+    n_splits = config['train']['n_splits']
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
     
-    # 튜닝 중에는 화면이 지저분해지니 verbose=False로 로그를 끕니다.
-    callbacks = [lgb.early_stopping(stopping_rounds=50, verbose=False)]
+    fold_maes = [] # 5번의 모의고사 점수를 담을 리스트
 
-    model = lgb.train(
-        params=param,
-        train_set=train_data,
-        valid_sets=[train_data, val_data],
-        valid_names=['train', 'valid'],
-        callbacks=callbacks
-    )
+    # 5번 반복하며 검증
+    for train_idx, val_idx in kf.split(X):
+        X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
+        X_val, y_val = X.iloc[val_idx], y.iloc[val_idx]
 
-    # MAE를 계산해서 Optuna에게 보고합니다.
-    y_pred = model.predict(X_val)
-    mae = mean_absolute_error(y_val, y_pred)
-    
-    return mae # Optuna는 이 값을 최소화(minimize)하기 위해 다음 파라미터를 똑똑하게 조절합니다.
+        # 뽑아준 파라미터로 모델을 학습시킵니다.
+        train_data = lgb.Dataset(X_train, label=y_train)
+        val_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
+
+        # 튜닝 중에는 화면이 지저분해지니 verbose=False로 로그를 끕니다.
+        callbacks = [lgb.early_stopping(stopping_rounds=50, verbose=False)]
+
+        model = lgb.train(
+            params=param,
+            train_set=train_data,
+            valid_sets=[train_data, val_data],
+            valid_names=['train', 'valid'],
+            callbacks=callbacks
+        )
+
+        # MAE를 계산해서 Optuna에게 보고합니다.
+        y_pred = model.predict(X_val)
+        mae = mean_absolute_error(y_val, y_pred) # Optuna는 이 값을 최소화(minimize)하기 위해 다음 파라미터를 똑똑하게 조절합니다.
+        fold_maes.append(mae)
+
+    # 5번의 '평균 점수'를 Optuna에게 최종적으로 전달
+    return np.mean(fold_maes) 
 
 # Optuna를 통해 하이퍼 파라미터 튜닝을 진행.
 # 별도로 진행 후 config.yaml에 해당 파라미터 설정
@@ -61,12 +75,12 @@ def main():
     processed_df, _, _ = run_preprocessing(train_df, is_train=True)
 
     target_col = config['features']['target']
-    X = processed_df.drop(columns=[target_col])
-    y = processed_df[target_col]
+    X = processed_df.drop(columns=[target_col]).reset_index(drop=True)
+    y = processed_df[target_col].reset_index(drop=True)
 
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=config['train']['test_size'], random_state=42
-    )
+    # X_train, X_val, y_train, y_val = train_test_split(
+    #     X, y, test_size=config['train']['test_size'], random_state=42
+    # )
 
     # Optuna 스터디(실험) 생성 및 실행
     study = optuna.create_study(direction=config['tune']['direction'])
@@ -75,7 +89,7 @@ def main():
 
     # objective 함수에 데이터를 전달하기 위해 람다(lambda) 함수 사용
     study.optimize(
-        lambda trial: objective(trial, X_train, y_train, X_val, y_val, config), 
+        lambda trial: objective(trial, X, y, config), 
         n_trials=config['tune']['n_trials']
     )
 

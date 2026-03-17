@@ -31,8 +31,8 @@ def main():
 
     # 학습 데이터 준비 (각 데이터와 결과 분리)
     target_col = config['features']['target']
-    X = processed_df.drop(columns=[target_col])
-    y = processed_df[target_col]
+    X = processed_df.drop(columns=[target_col]).reset_index(drop=True)
+    y = processed_df[target_col].reset_index(drop=True)
 
     # 기존 K-Fold 교차 검증 5번 분할로 교차 검증을 진행했다.
     # MAE: 0.1777
