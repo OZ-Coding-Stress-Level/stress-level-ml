@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 import joblib
 
 from preprocess import run_preprocessing
@@ -18,7 +19,7 @@ def main():
     
     test_path = os.path.join('..', raw_dir, test_file)
     sub_path = os.path.join('..', raw_dir, sub_file)
-    model_path = os.path.join('..', output_dir, 'lgb_model.pkl')
+    model_path = os.path.join('..', output_dir, 'ensemble_models.pkl')
     save_dir = os.path.join('..', output_dir, sub_dir)
 
     # 데이터 가져오기
@@ -33,7 +34,8 @@ def main():
 
     # 모델 및 전처리 도구 가져오기
     saved_tools = joblib.load(model_path)
-    model = saved_tools['model']
+    lgb_models = saved_tools['lgb_models']
+    xgb_models = saved_tools['xgb_models']
     encoders = saved_tools['encoders']
     scaler = saved_tools['scaler']
 
@@ -44,11 +46,24 @@ def main():
         encoders=encoders
     )
 
-    predictions = model.predict(processed_test)
+    lgb_preds = np.zeros(len(processed_test))
+    xgb_preds = np.zeros(len(processed_test))
+    
+    # LightGBM 5개의 의견 취합
+    for model in lgb_models:
+        lgb_preds += model.predict(processed_test)
+    lgb_preds /= len(lgb_models)
+    
+    # XGBoost 5개의 의견 취합
+    for model in xgb_models:
+        xgb_preds += model.predict(processed_test)
+    xgb_preds /= len(xgb_models)
 
     # 제출 양식(sample_submission)의 타겟 컬럼에 예측값 덮어씌우기
+    final_predictions = (lgb_preds + xgb_preds) / 2
+    
     target_col = config['features']['target']
-    submission_df[target_col] = predictions
+    submission_df[target_col] = final_predictions
     
     # 현재 시간으로 다이내믹한 파일명 생성 및 저장
     os.makedirs(save_dir, exist_ok=True) # submissions 폴더가 없으면 알아서 만듦
