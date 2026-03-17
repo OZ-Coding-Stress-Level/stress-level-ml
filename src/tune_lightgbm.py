@@ -95,7 +95,7 @@ def main():
 
     # 튜닝 완료 후 가장 성적이 좋았던 결과 출력
     print("\n==========================================")
-    print(f"최고 성능 (가장 낮은 MAE): {study.best_value:.4f}")
+    print(f"LightGBM 최고 성능 (가장 낮은 MAE): {study.best_value:.4f}")
     for key, value in study.best_params.items():
         print(f"    {key}: {value}")
     print("==========================================\n")
