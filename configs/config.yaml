@@ -45,8 +45,9 @@ train:
 # 머신러닝 모델 설정
 # 2026.03.16 LightGBM 선택 이유 : 정형 데이터에 맞추고 light라는 이름과 같이 가볍게 시도해볼 수 있는 학습속도를 가진 가성비라고 생각했습니다.
 # 2026.03.17 LightGBM + XGBoost 앙상블
+# 2026.03.18 XGBoost + CatBoost 앙상블 : 기존에 사용하던 LightGBM을 반영하다보니 점수가 깎여 오히려 좋지 않은 결과를 얻었습니다.
 model:
-  type: "ensemble_lgb_xgb_cb"
+  type: "ensemble_xgb_cb" # XGBoost + CatBoost
   # LightGBM 설정
   lgb_params:
     objective: "mae"                        # 스트레스 '점수(연속된 숫자)'를 맞추는 문제

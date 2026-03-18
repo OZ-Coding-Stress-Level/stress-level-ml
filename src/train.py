@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 import lightgbm as lgb
 from xgboost import XGBRegressor
+from catboost import CatBoostRegressor
 from sklearn.model_selection import train_test_split, KFold
 from sklearn.metrics import mean_absolute_error, r2_score
 
@@ -53,8 +54,9 @@ def main():
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
     
     # 5개의 모델을 담을 빈 리스트와, 검증 점수를 기록할 리스트 준비
-    lgb_models = []
+    # lgb_models = []
     xgb_models = []
+    cb_models = []
     oof_predictions = np.zeros(len(X)) # Out-Of-Fold: 전체 데이터에 대한 예측값 기록장
 
     print(f"\n총 {n_splits}번을 두 모델이 동시에 학습.")
@@ -74,16 +76,16 @@ def main():
         train_data_lgb = lgb.Dataset(X_train, label=y_train)
         val_data_lgb = lgb.Dataset(X_val, label=y_val, reference=train_data_lgb)
         
-        # LightGBM 학습
-        model_lgb = lgb.train(
-            params=config['model']['lgb_params'], # lgb 전용 파라미터
-            train_set=train_data_lgb,
-            valid_sets=[train_data_lgb, val_data_lgb],
-            valid_names=['train', 'valid'],
-            callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False)]
-        )
-        lgb_models.append(model_lgb)
-        val_pred_lgb = model_lgb.predict(X_val)
+        # LightGBM 학습 -> 2026.03.18 LightGBM이 들어가게되면서 데이터의 결과가 좋은 결과를 가져오지 않음.
+        # model_lgb = lgb.train(
+        #     params=config['model']['lgb_params'], # lgb 전용 파라미터
+        #     train_set=train_data_lgb,
+        #     valid_sets=[train_data_lgb, val_data_lgb],
+        #     valid_names=['train', 'valid'],
+        #     callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False)]
+        # )
+        # lgb_models.append(model_lgb)
+        # val_pred_lgb = model_lgb.predict(X_val)
 
         # XGBoost
         model_xgb = XGBRegressor(
@@ -98,10 +100,33 @@ def main():
         xgb_models.append(model_xgb)
         val_pred_xgb = model_xgb.predict(X_val)
 
-        # 두 모델의 예측값의 평균
-        fold_ensemble_pred = (val_pred_lgb + val_pred_xgb) / 2
+        # CatBoost
+        model_cb = CatBoostRegressor(
+            **config['model']['cb_params'],
+            early_stopping_rounds=50,
+            verbose=False, # 훈련 로그 숨기기
+            allow_writing_files=False # 기록파일 생성방지
+        )
+        model_cb.fit(
+            X_train, y_train, 
+            eval_set=(X_val, y_val), 
+            use_best_model=True
+        )
+
+        cb_models.append(model_cb)
+        val_pred_cb = model_cb.predict(X_val)
+
+        # LightGBM MAE: 0.1911 / R2 Score: 0.2556
+        # XGBoost MAE: 0.1752 / R2 Score: 0.3302
+        # CatBoost MAE: 0.1731 / R2 Score: 0.3231
+
+        # LightGBM + XGBoost MAE: 0.1811 / R2 Score: 0.3178
+        # LightGBM + CatBoost MAE: 0.1790 / R2 Score: 0.3261
+        # XGBoost + CatBoost MAE: 0.1710 / R2 Score: 0.3533
+        # LightGBM + XGBoost + CatBoost MAE: 0.1762 / R2 Score: 0.3422
+        fold_ensemble_pred = (val_pred_xgb + val_pred_cb) / 2
+
         oof_predictions[val_idx] = fold_ensemble_pred
-        
         fold_mae = mean_absolute_error(y_val, fold_ensemble_pred)
         print(f"   └─ 앙상블 MAE: {fold_mae:.4f}")
 
@@ -121,8 +146,9 @@ def main():
 
     model_path = os.path.join(output_dir, 'ensemble_models.pkl')
     joblib.dump({
-        'lgb_models': lgb_models, # 5개의 LightGBM
+        # 'lgb_models': lgb_models, # 5개의 LightGBM
         'xgb_models': xgb_models, # 5개의 XGBoost
+        'cb_models': cb_models, # 5개의 CatBoost
         'encoders': encoders,
         'scaler': scaler
     }, model_path)
