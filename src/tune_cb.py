@@ -36,7 +36,10 @@ def objective(trial, X, y, config):
         X_val, y_val = X.iloc[val_idx], y.iloc[val_idx]
 
         # CatBoost 모델 생성 및 학습
-        model = CatBoostRegressor(**param)
+        model = CatBoostRegressor(
+            **param,
+            allow_writing_files=False
+        )
         
         # early_stopping_rounds를 fit 함수에 직접 삽입
         model.fit(
