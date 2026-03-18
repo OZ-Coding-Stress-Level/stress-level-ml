@@ -34,8 +34,9 @@ def main():
 
     # 모델 및 전처리 도구 가져오기
     saved_tools = joblib.load(model_path)
-    lgb_models = saved_tools['lgb_models']
+    # lgb_models = saved_tools['lgb_models']
     xgb_models = saved_tools['xgb_models']
+    cb_models = saved_tools['cb_models']
     encoders = saved_tools['encoders']
     scaler = saved_tools['scaler']
 
@@ -46,21 +47,27 @@ def main():
         encoders=encoders
     )
 
-    lgb_preds = np.zeros(len(processed_test))
+    # lgb_preds = np.zeros(len(processed_test))
     xgb_preds = np.zeros(len(processed_test))
+    cb_preds = np.zeros(len(processed_test))
     
-    # LightGBM 5개의 의견 취합
-    for model in lgb_models:
-        lgb_preds += model.predict(processed_test)
-    lgb_preds /= len(lgb_models)
+    # # LightGBM 5개의 의견 취합
+    # for model in lgb_models:
+    #     lgb_preds += model.predict(processed_test)
+    # lgb_preds /= len(lgb_models)
     
     # XGBoost 5개의 의견 취합
     for model in xgb_models:
         xgb_preds += model.predict(processed_test)
     xgb_preds /= len(xgb_models)
 
+    # CatBoost 5개의 의견 취합
+    for model in cb_models:
+        cb_preds += model.predict(processed_test)
+    cb_preds /= len(cb_models)
+
     # 제출 양식(sample_submission)의 타겟 컬럼에 예측값 덮어씌우기
-    final_predictions = (lgb_preds + xgb_preds) / 2
+    final_predictions = (xgb_preds + cb_preds) / 2
     
     target_col = config['features']['target']
     submission_df[target_col] = final_predictions
