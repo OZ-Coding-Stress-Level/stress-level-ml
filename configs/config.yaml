@@ -46,7 +46,7 @@ train:
 # 2026.03.16 LightGBM 선택 이유 : 정형 데이터에 맞추고 light라는 이름과 같이 가볍게 시도해볼 수 있는 학습속도를 가진 가성비라고 생각했습니다.
 # 2026.03.17 LightGBM + XGBoost 앙상블
 model:
-  type: "ensemble_lgb_xgb"
+  type: "ensemble_lgb_xgb_cb"
   # LightGBM 설정
   lgb_params:
     objective: "mae"                        # 스트레스 '점수(연속된 숫자)'를 맞추는 문제
@@ -77,6 +77,17 @@ model:
     colsample_bytree: 0.7519257138437435
     min_child_weight: 2
     random_state: 42
+  
+  # CatBoost 설정
+  cb_params:
+    loss_function: "MAE"
+    eval_metric: "MAE"
+    iterations: 1344
+    learning_rate: 0.08248208954101031
+    depth: 10
+    l2_leaf_reg: 8.383017181905299
+    subsample: 0.6015498705370823
+    random_seed: 42
 
 tune:
   n_trials: 50            # Optuna가 시도하는 총 실험 횟수

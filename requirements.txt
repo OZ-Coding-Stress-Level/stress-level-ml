@@ -13,6 +13,7 @@ ipykernel
 # 머신러닝 모델링
 lightgbm
 xgboost
+catboost
 
 # 하이퍼파라미터 튜닝
 optuna
