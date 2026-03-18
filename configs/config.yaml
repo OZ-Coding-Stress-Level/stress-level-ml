@@ -71,11 +71,11 @@ model:
   xgb_params:
     objective: "reg:absoluteerror"  # XGBoost에서 MAE를 뜻하는 고유 이름
     eval_metric: "mae"
-    n_estimators: 1270
-    learning_rate: 0.06789366247411412
-    max_depth: 10                    # XGBoost는 기본적으로 트리가 깊어지면 과적합이 잘 돼서 6~8을 추천합니다.
-    subsample: 0.9350295988735292
-    colsample_bytree: 0.7519257138437435
+    n_estimators: 1434
+    learning_rate: 0.08423105673041865
+    max_depth: 9
+    subsample: 0.6432255492746454
+    colsample_bytree: 0.9703486079791388
     min_child_weight: 2
     random_state: 42
   
@@ -83,12 +83,19 @@ model:
   cb_params:
     loss_function: "MAE"
     eval_metric: "MAE"
-    iterations: 1344
-    learning_rate: 0.08248208954101031
+    iterations: 1494
+    learning_rate: 0.075072623743025
     depth: 10
-    l2_leaf_reg: 8.383017181905299
-    subsample: 0.6015498705370823
+    l2_leaf_reg: 4.071325932966824
+    subsample: 0.853572594050541
     random_seed: 42
+
+  # SVR 설정
+  svr_params:
+    kernel: "rbf"
+    C: 8.43413502668363            # 규제 강도
+    epsilon: 0.010021580397757995   # 오차 무시 구간의 크기
+    gamma: "scale"                   # 곡선의 굴곡 정도
 
 tune:
   n_trials: 50            # Optuna가 시도하는 총 실험 횟수

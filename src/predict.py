@@ -37,15 +37,19 @@ def main():
     # lgb_models = saved_tools['lgb_models']
     xgb_models = saved_tools['xgb_models']
     cb_models = saved_tools['cb_models']
-    encoders = saved_tools['encoders']
+    train_columns = saved_tools['train_columns']
     scaler = saved_tools['scaler']
 
     processed_test, _, _ = run_preprocessing(
         test_df, 
         is_train=False,
         scaler=scaler,
-        encoders=encoders
+        train_columns=train_columns
     )
+
+    target_col = config['features']['target']
+    if target_col in processed_test.columns:
+        processed_test = processed_test.drop(columns=[target_col])
 
     # lgb_preds = np.zeros(len(processed_test))
     xgb_preds = np.zeros(len(processed_test))
@@ -67,7 +71,7 @@ def main():
     cb_preds /= len(cb_models)
 
     # 제출 양식(sample_submission)의 타겟 컬럼에 예측값 덮어씌우기
-    final_predictions = (xgb_preds + cb_preds) / 2
+    final_predictions = (xgb_preds * 0.0610) + (cb_preds * 0.9390)
     
     target_col = config['features']['target']
     submission_df[target_col] = final_predictions

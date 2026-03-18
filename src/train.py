@@ -5,13 +5,22 @@ import joblib
 import lightgbm as lgb
 from xgboost import XGBRegressor
 from catboost import CatBoostRegressor
+from sklearn.svm import SVR
 from sklearn.model_selection import train_test_split, KFold
 from sklearn.metrics import mean_absolute_error, r2_score
+from scipy.optimize import minimize
 
 # 전처리 모듈 불러오기
 from preprocess import run_preprocessing
 # config 호출 함수 불러오기
 from utils.config_loader import load_config
+
+# Scipy가 사용할 '오차 계산기' 함수 (main 함수 바깥에 정의)
+def objective_func(weights, preds_dict, y_true):
+    final_pred = (weights[0] * preds_dict['xgb']) + \
+                 (weights[1] * preds_dict['cb']) + \
+                 (weights[2] * preds_dict['svr'])
+    return mean_absolute_error(y_true, final_pred)
 
 def main():
     # 설정 및 데이터 로드
@@ -29,7 +38,7 @@ def main():
         train_df = train_df.drop(columns=[id_col])
 
     # 전처리
-    processed_df, scaler, encoders  = run_preprocessing(train_df)
+    processed_df, scaler, train_columns  = run_preprocessing(train_df)
 
     # 학습 데이터 준비 (각 데이터와 결과 분리)
     target_col = config['features']['target']
@@ -57,7 +66,12 @@ def main():
     # lgb_models = []
     xgb_models = []
     cb_models = []
+    # svr_models = []
     oof_predictions = np.zeros(len(X)) # Out-Of-Fold: 전체 데이터에 대한 예측값 기록장
+
+    # oof_xgb = np.zeros(len(X))
+    # oof_cb = np.zeros(len(X))
+    # oof_svr = np.zeros(len(X))
 
     print(f"\n총 {n_splits}번을 두 모델이 동시에 학습.")
     print("=" * 50)
@@ -99,6 +113,7 @@ def main():
         )
         xgb_models.append(model_xgb)
         val_pred_xgb = model_xgb.predict(X_val)
+        # oof_xgb[val_idx] = model_xgb.predict(X_val) # 각각의 도화지에 저장
 
         # CatBoost
         model_cb = CatBoostRegressor(
@@ -112,19 +127,40 @@ def main():
             eval_set=(X_val, y_val), 
             use_best_model=True
         )
-
         cb_models.append(model_cb)
         val_pred_cb = model_cb.predict(X_val)
+        # oof_cb[val_idx] = model_cb.predict(X_val) # 각각의 도화지에 저장
 
+        # SVR
+        # model_svr = SVR(**config['model']['svr_params'])
+        # model_svr.fit(X_train, y_train)
+        # svr_models.append(model_svr)
+        # val_pred_svr = model_svr.predict(X_val)
+        # oof_svr[val_idx] = model_svr.predict(X_val) # 각각의 도화지에 저장
+
+        # MARK: - 전처리 개선 이전 (LabelEncoder 제거 후 One Hot Encoder 및 순서가 있는 경우 Dictionary로 매핑)
         # LightGBM MAE: 0.1911 / R2 Score: 0.2556
         # XGBoost MAE: 0.1752 / R2 Score: 0.3302
         # CatBoost MAE: 0.1731 / R2 Score: 0.3231
-
         # LightGBM + XGBoost MAE: 0.1811 / R2 Score: 0.3178
         # LightGBM + CatBoost MAE: 0.1790 / R2 Score: 0.3261
-        # XGBoost + CatBoost MAE: 0.1710 / R2 Score: 0.3533
+        # [⭐️ 최종 선택] XGBoost + CatBoost MAE: 0.1710 / R2 Score: 0.3533
         # LightGBM + XGBoost + CatBoost MAE: 0.1762 / R2 Score: 0.3422
-        fold_ensemble_pred = (val_pred_xgb + val_pred_cb) / 2
+        # SVR MAE: 0.2209 / R2 Score: -0.1150
+
+        # MARK: - 전처리 개선 이후
+        # XGBoost MAE: 0.1716 / R2 Score: 0.3082
+        # CatBoost MAE: 0.1601 / R2 Score: 0.3564
+        # SVR MAE: 0.2055 / R2 Score: -0.0636
+        # XGBoost + CatBoost MAE: 0.1633 / R2 Score: 0.3579
+        # XGBoost + CatBoost + SVR MAE: 0.1701 / R2 Score: 0.3049
+        
+        # Spicy 실행
+        # XGBoost 가중치  : 0.0610 (6.1%)
+        # CatBoost 가중치 : 0.9390 (93.9%)
+        # SVR 가중치      : 0.0000 (0.0%)
+        # [최종] XGBoost + CatBoost MAE: 0.1600 / R2 Score: 0.3593
+        fold_ensemble_pred = (val_pred_xgb * 0.0610) + (val_pred_cb * 0.9390)
 
         oof_predictions[val_idx] = fold_ensemble_pred
         fold_mae = mean_absolute_error(y_val, fold_ensemble_pred)
@@ -140,6 +176,34 @@ def main():
     print(f"   - OOF R2 Score: {total_r2:.4f}")
     print("=" * 40 + "\n")
 
+    # print("\n" + "=" * 50)
+    # print("Scipy: 최적의 앙상블 가중치 탐색 시작...")
+    
+    # preds_dict = {'xgb': oof_xgb, 'cb': oof_cb, 'svr': oof_svr}
+    # initial_weights = [0.33, 0.33, 0.33] # 1:1:1 에서 출발
+    # bounds = [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)] # 가중치는 0~1 사이
+    # constraints = ({'type': 'eq', 'fun': lambda w: 1.0 - sum(w)}) # 다 합쳐서 무조건 1.0 (100%)
+
+    # # Scipy 실행!
+    # res = minimize(
+    #     objective_func, 
+    #     initial_weights, 
+    #     args=(preds_dict, y), 
+    #     method='SLSQP', 
+    #     bounds=bounds, 
+    #     constraints=constraints
+    # )
+
+    # best_weights = res.x
+    # best_mae = res.fun
+
+    # print("Scipy 최적화 완료")
+    # print(f"XGBoost 가중치  : {best_weights[0]:.4f} ({best_weights[0]*100:.1f}%)")
+    # print(f"CatBoost 가중치 : {best_weights[1]:.4f} ({best_weights[1]*100:.1f}%)")
+    # print(f"SVR 가중치      : {best_weights[2]:.4f} ({best_weights[2]*100:.1f}%)")
+    # print(f"최종 가중 평균 OOF MAE: {best_mae:.4f}")
+    # print("=" * 50 + "\n")
+
     # 저장 (모델 1개가 아니라, 5개가 담긴 리스트를 통째로 저장합니다!)
     output_dir = os.path.join('..', config['output']['dir'])
     os.makedirs(output_dir, exist_ok=True)
@@ -149,7 +213,7 @@ def main():
         # 'lgb_models': lgb_models, # 5개의 LightGBM
         'xgb_models': xgb_models, # 5개의 XGBoost
         'cb_models': cb_models, # 5개의 CatBoost
-        'encoders': encoders,
+        'train_columns': train_columns,
         'scaler': scaler
     }, model_path)
 
