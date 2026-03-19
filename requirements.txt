@@ -17,3 +17,6 @@ catboost
 
 # 하이퍼파라미터 튜닝
 optuna
+
+joblib
+scikit-learn
