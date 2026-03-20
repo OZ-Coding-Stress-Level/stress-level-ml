@@ -1,0 +1,22 @@
+# 데이터 핸들링 및 수치 계산
+pandas
+numpy
+
+# 데이터 시각화
+matplotlib
+seaborn
+
+# 설정 파일 및 환경 관리
+PyYAML
+ipykernel
+
+# 머신러닝 모델링
+lightgbm
+xgboost
+catboost
+
+# 하이퍼파라미터 튜닝
+optuna
+
+joblib
+scikit-learn

@@ -1,0 +1,102 @@
+# 데이터 경로
+data:
+  raw_dir: "data/raw"
+  train_file: "train.csv"
+  test_file: "test.csv"
+  submission_file: "sample_submission.csv"
+
+# 피처 정보
+features:
+  target: "stress_score" # (TARGET) 스트레스 점수 
+  id_col: "ID" # 샘플별 고유 ID
+
+  # 수치형 변수
+  numerical:
+    - age # 연령
+    - height # 키(cm)
+    - weight # 몸무게(kg)
+    - cholesterol # 콜레스테롤 수치
+    - systolic_blood_pressure # 수축기 혈압
+    - diastolic_blood_pressure # 이완기 혈압
+    - glucose # 혈당 수치(mg/dL)
+    - bone_density # 골밀도(g/cm²)
+    - mean_working # 1주일당 평균 근로 시간
+
+  # 범주형 변수
+  categorical:
+    - gender # 성별
+    - activity # 생활시 운동 강도
+    - smoke_status # 흡연 상태
+    - medical_history # 만성질환
+    - family_medical_history # 가족력
+    - sleep_pattern # 수면패턴
+    - edu_level # 학력
+
+# 출력 경로
+output:
+  dir: "outputs"
+  submissions: "submissions"
+
+# 학습 설정 (데이터 분할 등)
+train:
+  test_size: 0.2    # 검증용 데이터 비율 (20%)
+  n_splits: 5       # (선택) K-Fold 교차 검증을 할 경우 사용할 분할 수
+
+# 머신러닝 모델 설정
+# 2026.03.16 LightGBM 선택 이유 : 정형 데이터에 맞추고 light라는 이름과 같이 가볍게 시도해볼 수 있는 학습속도를 가진 가성비라고 생각했습니다.
+# 2026.03.17 LightGBM + XGBoost 앙상블
+# 2026.03.18 XGBoost + CatBoost 앙상블 : 기존에 사용하던 LightGBM을 반영하다보니 점수가 깎여 오히려 좋지 않은 결과를 얻었습니다.
+model:
+  type: "ensemble_xgb_cb" # XGBoost + CatBoost
+  # LightGBM 설정
+  lgb_params:
+    objective: "mae"                        # 스트레스 '점수(연속된 숫자)'를 맞추는 문제
+    metric: "mae"                           # 평가 지표
+    
+    # 하이퍼파라미터 튜닝을 적용하여 학습량을 늘리고 그에 따른 학습 속도를 키웠습니다.
+    n_estimators: 1018                      # 나무(Tree)를 몇 개나 심을 것인가 (학습 반복 횟수)
+    learning_rate: 0.07573506970618764      # 학습 속도 (너무 크면 대충 배우고, 너무 작으면 오래 걸림)
+
+    # 하이퍼파라미터 튜닝을 적용하여 너무 깊게 파고들지 않고 더 다양하고 복잡한 케이스를 보도록 전략 수정.
+    max_depth: 13                          # 나무의 최대 깊이 (-1은 제한 없이 깊게 파고든다는 뜻)
+    num_leaves: 109                         # 하나의 나무가 가질 수 있는 최대 잎사귀 수 (복잡도 조절)
+    
+    # 과적합 방지를 
+    subsample: 0.9908006043033087           # 행 랜덤 뽑기 - 이상치를 단순히 외워버리는 것을 방지 -> 일반화
+    colsample_bytree: 0.9312470771431703    # 특성 랜덤 가리기 - 강력한 힌트를 숨기고 다른 의미도 학습할 수 있게 구현
+    random_state: 42                        # 랜덤 시드 (항상 똑같은 결과가 나오도록 고정)
+    verbose: -1                             # 불필요한 경고 메시지 숨기기
+
+  # XGBoost 설정
+  xgb_params:
+    objective: "reg:absoluteerror"  # XGBoost에서 MAE를 뜻하는 고유 이름
+    eval_metric: "mae"
+    n_estimators: 1434
+    learning_rate: 0.08423105673041865
+    max_depth: 9
+    subsample: 0.6432255492746454
+    colsample_bytree: 0.9703486079791388
+    min_child_weight: 2
+    random_state: 42
+  
+  # CatBoost 설정
+  cb_params:
+    loss_function: "MAE"
+    eval_metric: "MAE"
+    iterations: 1494
+    learning_rate: 0.075072623743025
+    depth: 10
+    l2_leaf_reg: 4.071325932966824
+    subsample: 0.853572594050541
+    random_seed: 42
+
+  # SVR 설정
+  svr_params:
+    kernel: "rbf"
+    C: 8.43413502668363            # 규제 강도
+    epsilon: 0.010021580397757995   # 오차 무시 구간의 크기
+    gamma: "scale"                   # 곡선의 굴곡 정도
+
+tune:
+  n_trials: 50            # Optuna가 시도하는 총 실험 횟수
+  direction: "minimize"   # MAE(오차)는 작아질수록 좋다.
